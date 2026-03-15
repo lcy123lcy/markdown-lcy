@@ -17,3 +17,8 @@ interface ImportMeta {
   readonly env: ImportMetaEnv // 环境变量接口
 }
 
+declare module 'highlightjs-vue' {
+  const fn: (hljs: import('highlight.js').HLJSApi) => void
+  export default fn
+}
+

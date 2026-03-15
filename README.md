@@ -88,6 +88,33 @@ npm run preview
 npm run type-check
 ```
 
+## OpenSpec-cn（OPSX 工作流）
+
+本项目支持 [OpenSpec-cn](https://github.com/studyzy/OpenSpec-cn) 的 [OPSX 工作流](https://github.com/studyzy/OpenSpec-cn/blob/main/docs/opsx.md)：以行动为导向、可迭代的规格驱动开发。
+
+### 安装与初始化
+
+需 **Node.js 20.19.0+**。在项目根目录执行：
+
+```bash
+# 安装依赖（含 @studyzy/openspec-cn）
+npm install
+
+# 初始化（创建技能与命令，为 Cursor 配置）
+npx openspec-cn init --tools cursor
+```
+
+初始化会在 `.cursor/skills/` 与 `.cursor/commands/` 中创建 OPSX 技能与斜杠命令；重启 IDE 后生效。刷新代理指令：`npm run openspec:update`。
+
+### OPSX 命令（由 init 生成）
+
+| 命令 | 功能 |
+|------|------|
+| `/opsx:explore` | 深入思考想法、调查问题、明确需求 |
+| `/opsx:propose [变更名]` | 提案新变更，一步创建 proposal、design、tasks 等产出物 |
+| `/opsx:apply` | 按 tasks.md 实施任务并勾选 |
+| `/opsx:archive` | 完成后归档 |
+
 ## 开发说明
 
 - 项目使用 TypeScript 严格模式，确保类型安全

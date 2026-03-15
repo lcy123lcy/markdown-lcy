@@ -1,20 +1,51 @@
-import { createRouter, createWebHistory } from 'vue-router' // 导入Vue Router
-import type { RouteRecordRaw } from 'vue-router' // 路由类型定义
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 
-// 路由配置数组
 const routes: RouteRecordRaw[] = [
   {
-    path: '/', // 根路径
-    name: 'Home', // 路由名称
-    component: () => import('../views/Home.vue'), // 懒加载组件
+    path: '/login',
+    name: 'Login',
+    component: () => import('../views/Login.vue'),
+    meta: { guest: true },
+  },
+  {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/Register.vue'),
+    meta: { guest: true },
+  },
+  {
+    path: '/',
+    name: 'Home',
+    component: () => import('../views/Home.vue'),
+    meta: { requiresAuth: true },
+  },
+  {
+    path: '/doc/:id',
+    name: 'Document',
+    component: () => import('../views/DocumentEdit.vue'),
+    meta: { requiresAuth: true },
   },
 ]
 
-// 创建路由实例
 const router = createRouter({
-  history: createWebHistory(), // 使用HTML5历史模式
-  routes, // 路由配置
+  history: createWebHistory(),
+  routes,
 })
 
-export default router // 导出路由实例
+router.beforeEach(async (to) => {
+  const authStore = useAuthStore()
 
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
+
+  if (to.meta.guest && authStore.isAuthenticated) {
+    return { path: '/', replace: true }
+  }
+
+  return true
+})
+
+export default router

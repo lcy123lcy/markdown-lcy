@@ -46,38 +46,37 @@ try {
   console.warn('导入 Vue 语言支持时出错:', error)
 }
 
+function highlightCode(code: string, lang: string): string {
+  let normalizedLang = lang ? lang.toLowerCase() : ''
+  if (normalizedLang === 'py') normalizedLang = 'python'
+  else if (['vue-template', 'vue3', 'vue2'].includes(normalizedLang)) normalizedLang = 'vue'
+
+  if (normalizedLang && hljs.getLanguage(normalizedLang)) {
+    try {
+      return hljs.highlight(code, { language: normalizedLang }).value
+    } catch {
+      // fall through
+    }
+  }
+  try {
+    return hljs.highlightAuto(code, ['python', 'vue', 'javascript', 'typescript']).value
+  } catch {
+    return hljs.highlight(code, { language: 'plaintext' }).value
+  }
+}
+
 /**
- * 配置marked解析器选项
+ * 配置marked解析器选项（marked 16 使用 renderer 覆盖 code）
  */
 export function configureMarked(): void {
-  marked.setOptions({
-    breaks: true, // 支持GitHub风格的换行
-    gfm: true, // 启用GitHub风格的Markdown
-    highlight: (code: string, lang: string) => {
-      // 代码高亮处理函数
-      // 标准化语言标识（python, py 都识别为 python；vue, vue-template 都识别为 vue）
-      let normalizedLang = lang ? lang.toLowerCase() : ''
-      if (normalizedLang === 'py') {
-        normalizedLang = 'python'
-      } else if (normalizedLang === 'vue-template' || normalizedLang === 'vue3' || normalizedLang === 'vue2') {
-        normalizedLang = 'vue'
-      }
-      
-      if (normalizedLang && hljs.getLanguage(normalizedLang)) {
-        try {
-          // 如果语言支持，则进行高亮
-          return hljs.highlight(code, { language: normalizedLang }).value // 返回高亮后的HTML
-        } catch (err) {
-          console.warn('代码高亮失败:', err) // 输出警告信息
-        }
-      }
-      // 如果不支持或出错，则自动检测语言并高亮（优先 Python 和 Vue）
-      try {
-        return hljs.highlightAuto(code, ['python', 'vue', 'javascript', 'typescript']).value // 自动检测语言并高亮
-      } catch (err) {
-        // 如果自动检测也失败，返回转义的代码
-        return hljs.highlight(code, { language: 'plaintext' }).value
-      }
+  marked.use({
+    breaks: true,
+    gfm: true,
+    renderer: {
+      code({ text, lang }: { text: string; lang?: string }) {
+        const escaped = highlightCode(text, lang || '')
+        return `<pre><code class="hljs">${escaped}</code></pre>`
+      },
     },
   })
 }
@@ -95,12 +94,12 @@ function addHeadingIds(html: string): string {
   // 查找所有标题元素并添加ID
   const headings = tempDiv.querySelectorAll('h1, h2, h3, h4, h5, h6') // 选择所有标题
   headings.forEach((heading, index) => {
-    // 如果标题没有ID，则生成一个
     if (!heading.id) {
-      const text = heading.textContent || '' // 获取标题文本
-      // 生成基于文本的ID（移除特殊字符，转换为小写，用连字符连接）
-      const id = `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${index}`
-      heading.id = id || `heading-${index}` // 如果ID为空则使用索引
+      const text = heading.textContent || ''
+      // 生成 ID：支持中文（转 Unicode 或拼音），纯中文/空时用索引兜底
+      let slug = text.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').replace(/^-|-$/g, '')
+      if (!slug) slug = `h-${index}`
+      heading.id = `heading-${slug}-${index}`
     }
   })
   

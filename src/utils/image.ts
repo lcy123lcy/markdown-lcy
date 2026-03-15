@@ -45,14 +45,12 @@ export function fileToDataURL(file: File): Promise<string> {
 export function getImageFromClipboard(clipboardData: DataTransfer): File | null {
   const items = clipboardData.items // 获取剪贴板项数组
 
-  // 遍历剪贴板项
   for (let i = 0; i < items.length; i++) {
-    const item = items[i] // 获取当前项
-
-    // 检查是否为图片类型
+    const item = items[i]
+    if (!item) continue
     if (item.type.startsWith('image/')) {
-      const file = item.getAsFile() // 获取文件对象
-      return file // 返回图片文件
+      const file = item.getAsFile()
+      return file
     }
   }
 

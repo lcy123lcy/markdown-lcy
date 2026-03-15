@@ -1,7 +1,7 @@
 <template>
   <div class="markdown-editor h-full flex flex-col">
     <!-- 工具栏 -->
-    <Toolbar :editor-view="editorView" :wysiwyg-adapter="toolbarAdapter" />
+    <Toolbar :editor-view="null" :wysiwyg-adapter="toolbarAdapter" :document-id="props.documentId" />
     
     <!-- 主编辑区容器 -->
     <div class="editor-container flex-1 flex overflow-hidden">
@@ -48,7 +48,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue' // 导入Vue组合式API
 import { ElMessage } from 'element-plus' // 导入Element Plus消息组件
-import type { EditorView } from '@codemirror/view' // 导入CodeMirror视图类型（用于工具栏兼容）
 import TurndownService from 'turndown' // 导入Turndown用于HTML转Markdown
 import hljs from 'highlight.js' // 导入 highlight.js 用于代码高亮
 import { useEditorStore } from '@/stores/editor' // 导入编辑器store
@@ -56,6 +55,12 @@ import { parseMarkdown } from '@/utils/markdown' // 导入Markdown解析函数
 import { fileToDataURL, getImageFromClipboard, validateImageSize } from '@/utils/image' // 导入图片处理工具函数
 import { generateToc, renderToc } from '@/utils/toc' // 导入目录生成函数
 import Toolbar from './Toolbar.vue' // 导入工具栏组件
+import { fetchDocument, updateDocument } from '@/api/documents'
+
+const props = withDefaults(
+  defineProps<{ documentId?: string }>(),
+  { documentId: '' }
+)
 
 // 注册Vue语言支持（使用动态导入避免错误）
 import('highlightjs-vue').then((vueModule: any) => {
@@ -76,9 +81,6 @@ const editorStore = useEditorStore()
 
 // 编辑器容器引用
 const wysiwygContainer = ref<HTMLElement | null>(null)
-
-// CodeMirror编辑器实例（用于工具栏兼容，实际不使用）
-const editorView = ref<EditorView | null>(null)
 
 // 是否显示目录
 const showToc = ref(true) // 默认显示目录
@@ -126,10 +128,9 @@ const ensureHeadingIds = () => {
     
     if (!heading.id) {
       const text = heading.textContent || ''
-      // 生成基于文本的ID（与 markdown.ts 中的逻辑保持一致）
-      let id = `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${index}`
-      id = id || `heading-${index}`
-      heading.id = id
+      let slug = text.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').replace(/^-|-$/g, '')
+      if (!slug) slug = `h-${index}`
+      heading.id = `heading-${slug}-${index}`
     }
   })
 }
@@ -283,6 +284,7 @@ const highlightCodeBlocks = () => {
 const handleContentChange = (event: Event) => {
   if (isUpdatingContent) return // 如果正在更新内容则返回
   
+  userHasEdited.value = true
   isUserEditing = true // 标记用户正在编辑
   
   const target = event.target as HTMLElement
@@ -928,36 +930,77 @@ const handlePaste = async (event: ClipboardEvent) => {
   }
 }
 
-// 组件挂载时初始化
-onMounted(async () => {
-  await nextTick() // 等待DOM渲染完成
-  
-  // 从 localStorage 加载保存的内容
-  try {
-    const savedContent = localStorage.getItem('markdown-content')
-    if (savedContent) {
-      editorStore.setMarkdownContent(savedContent)
+// 初始化编辑器 DOM 内容
+const initEditorDom = () => {
+  if (!wysiwygContainer.value) return
+  const html = getPreviewHtml()
+  wysiwygContainer.value.innerHTML = html
+  ensureHeadingIds()
+  highlightCodeBlocks()
+  updateToc(wysiwygContainer.value.innerHTML)
+}
+
+// 文档保存防抖
+let saveTimer: ReturnType<typeof setTimeout> | null = null
+const SAVE_DEBOUNCE_MS = 800
+
+const scheduleSave = () => {
+  if (!props.documentId) return
+  if (saveTimer) clearTimeout(saveTimer)
+  saveTimer = setTimeout(async () => {
+    saveTimer = null
+    try {
+      await updateDocument(props.documentId, {
+        content: editorStore.markdownContent,
+      })
+    } catch (e) {
+      console.error('保存失败:', e)
+      ElMessage.error('保存失败')
     }
-  } catch (error) {
-    console.warn('加载本地存储内容失败:', error)
+  }, SAVE_DEBOUNCE_MS)
+}
+
+// 用户是否已编辑（避免加载后误触发保存）
+const userHasEdited = ref(false)
+
+// 监听内容变化以自动保存（仅用户编辑后）
+watch(
+  () => editorStore.markdownContent,
+  () => {
+    if (userHasEdited.value && props.documentId) scheduleSave()
+  },
+  { deep: false }
+)
+
+// 加载文档
+const loadDocument = async (id: string) => {
+  try {
+    userHasEdited.value = false
+    const doc = await fetchDocument(id)
+    editorStore.setMarkdownContent(doc.content)
+    initEditorDom()
+  } catch (e) {
+    console.error('加载文档失败:', e)
+    ElMessage.error('加载文档失败')
   }
-  
-  // 初始化编辑器内容
-  if (wysiwygContainer.value) {
-    const html = getPreviewHtml()
-    wysiwygContainer.value.innerHTML = html
-    
-    // 确保所有标题都有ID
-    ensureHeadingIds()
-    
-    // 确保所有标题都有ID
-    ensureHeadingIds()
-    
-    // 高亮所有代码块
-    highlightCodeBlocks()
-    
-    // 初始化目录（使用更新后的HTML，确保包含ID）
-    updateToc(wysiwygContainer.value.innerHTML)
+}
+
+watch(
+  () => props.documentId,
+  (id) => {
+    if (id) loadDocument(id)
+  },
+  { immediate: false }
+)
+
+// 组件挂载时初始化（仅从后端加载，不使用本地存储）
+onMounted(async () => {
+  await nextTick()
+  if (props.documentId) {
+    await loadDocument(props.documentId)
+  } else {
+    editorStore.setMarkdownContent('# 欢迎使用Markdown编辑器\n\n请从左侧选择或新建文档开始编辑。\n')
+    initEditorDom()
   }
 })
 

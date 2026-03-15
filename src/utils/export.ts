@@ -1,6 +1,23 @@
 import { parseMarkdown } from './markdown' // 导入Markdown解析函数
 
 /**
+ * 导出 Markdown 内容为 .md 文件
+ * @param markdown - Markdown 原始文本
+ * @param filename - 文件名（不含扩展名）
+ */
+export function exportToMarkdown(markdown: string, filename: string = 'markdown-export'): void {
+  const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${filename}.md`
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
+}
+
+/**
  * 导出Markdown内容为HTML文件
  * @param markdown - Markdown原始文本
  * @param filename - 文件名（不含扩展名）
@@ -38,13 +55,19 @@ export function exportToHTML(markdown: string, filename: string = 'markdown-expo
       font-size: 0.9em;
     }
     pre {
-      background-color: #f4f4f4;
+      background-color: #282c34;
       padding: 1em;
       border-radius: 0.5rem;
       overflow-x: auto;
       margin: 1em 0;
+      color: #abb2bf;
     }
-    pre code { background-color: transparent; padding: 0; }
+    pre code { background-color: transparent; padding: 0; color: inherit; }
+    .hljs-keyword, .hljs-selector-tag, .hljs-built_in { color: #c678dd; }
+    .hljs-string, .hljs-attr { color: #98c379; }
+    .hljs-number, .hljs-literal { color: #d19a66; }
+    .hljs-comment { color: #5c6370; font-style: italic; }
+    .hljs-title, .hljs-function { color: #61afef; }
     ul, ol { margin: 1em 0; padding-left: 2em; }
     li { margin: 0.5em 0; }
     blockquote {

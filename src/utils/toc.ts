@@ -29,12 +29,11 @@ export function generateToc(html: string): TocItem[] {
     const level = parseInt(heading.tagName.substring(1)) // 获取标题级别（1-6）
     const text = heading.textContent || '' // 获取标题文本
     
-    // 使用标题已有的ID，如果没有则生成一个（与markdown.ts中的逻辑保持一致）
     let id = heading.id
     if (!id) {
-      // 生成基于文本的ID（与addHeadingIds函数保持一致）
-      id = `heading-${text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${index}`
-      id = id || `heading-${index}` // 如果ID为空则使用索引
+      let slug = text.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, '-').replace(/^-|-$/g, '')
+      if (!slug) slug = `h-${index}`
+      id = `heading-${slug}-${index}`
     }
     
     // 创建目录项
@@ -45,15 +44,14 @@ export function generateToc(html: string): TocItem[] {
       children: [], // 子标题数组
     }
     
-    // 构建层级结构
-    while (stack.length > 0 && stack[stack.length - 1].level >= level) {
-      stack.pop() // 弹出同级或更高级的标题
+    while (stack.length > 0 && (stack[stack.length - 1]?.level ?? 0) >= level) {
+      stack.pop()
     }
-    
-    if (stack.length === 0) {
-      toc.push(item) // 如果是顶级标题，添加到根目录
+    const parent = stack[stack.length - 1]
+    if (!parent) {
+      toc.push(item)
     } else {
-      stack[stack.length - 1].children.push(item) // 否则添加到父标题的子项
+      parent.children.push(item)
     }
     
     stack.push(item) // 将当前项压入栈

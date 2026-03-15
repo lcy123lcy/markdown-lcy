@@ -14,7 +14,14 @@ export default defineConfig({
   server: {
     // 开发服务器配置
     port: 3000, // 开发服务器端口
-    open: true // 自动打开浏览器
-  }
+    open: true, // 自动打开浏览器
+    proxy: {
+      '/api': {
+        target: 'http://127.0.0.1:3001',
+        changeOrigin: true,
+        secure: false,
+      },
+    },
+  },
 })
 

@@ -103,6 +103,7 @@
       <!-- 字体颜色 -->
       <el-color-picker
         v-model="fontColor"
+        @focus="saveSelection"
         @change="handleFontColorChange"
         size="small"
         :predefine="predefineColors"
@@ -113,6 +114,7 @@
       <!-- 背景颜色 -->
       <el-color-picker
         v-model="backgroundColor"
+        @focus="saveSelection"
         @change="handleBackgroundColorChange"
         size="small"
         :predefine="predefineColors"
@@ -140,6 +142,15 @@
 
     <!-- 列表和引用按钮组 -->
     <div class="toolbar-group flex items-center gap-1 border-r border-base-300 pr-2">
+      <!-- 引用 -->
+      <el-button
+        @click="handleQuote"
+        size="small"
+        text
+        title="引用"
+      >
+        “
+      </el-button>
       <!-- 无序列表 -->
       <el-button
         @click="handleUnorderedList"
@@ -163,6 +174,15 @@
 
     <!-- 代码和链接按钮组 -->
     <div class="toolbar-group flex items-center gap-1 border-r border-base-300 pr-2">
+      <!-- 行内代码 -->
+      <el-button
+        @click="handleInlineCode"
+        size="small"
+        text
+        title="行内代码"
+      >
+        &lt;/&gt;
+      </el-button>
       <!-- 代码块 -->
       <el-button
         @click="handleCodeBlock"
@@ -209,7 +229,8 @@
       <!-- 字数统计 -->
       <div class="text-sm text-base-content/70 px-2">
         字符: {{ editorStore.textStats.charactersWithSpaces }} | 
-        单词: {{ editorStore.textStats.words }}
+        词: {{ editorStore.textStats.words }} | 
+        行: {{ editorStore.textStats.lines }}
       </div>
       
       <!-- 清空内容 -->
@@ -228,9 +249,19 @@
         @click="handleSave"
         size="small"
         type="primary"
-        title="保存到本地存储"
+        :title="documentId ? '保存到后端' : '请先选择或创建文档'"
+        :disabled="!documentId"
       >
         保存
+      </el-button>
+      
+      <!-- 导出 Markdown -->
+      <el-button
+        @click="handleExportMarkdown"
+        size="small"
+        title="导出为 .md 文件"
+      >
+        导出MD
       </el-button>
       
       <!-- 导出HTML -->
@@ -247,10 +278,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue' // 导入Vue响应式API
+import { ref, computed } from 'vue' // 导入Vue响应式API
 import { ElMessageBox, ElMessage } from 'element-plus' // 导入Element Plus消息组件
 import { useEditorStore } from '@/stores/editor' // 导入编辑器store
-import { exportToHTML } from '@/utils/export' // 导入导出函数
+import { exportToHTML, exportToMarkdown } from '@/utils/export' // 导入导出函数
 import hljs from 'highlight.js' // 导入 highlight.js 用于代码高亮
 
 // 字体设置相关的响应式变量
@@ -302,6 +333,7 @@ import {
   getSelectedText,
 } from '@/utils/editor' // 导入编辑器工具函数
 import { fileToDataURL, validateImageSize } from '@/utils/image' // 导入图片处理工具函数
+import { updateDocument } from '@/api/documents'
 import type { EditorView } from '@codemirror/view' // 导入CodeMirror视图类型
 import type { UploadFile, UploadInstance } from 'element-plus' // 导入Element Plus上传类型
 
@@ -319,9 +351,11 @@ interface WysiwygAdapter {
 interface Props {
   editorView: EditorView | null // CodeMirror编辑器实例
   wysiwygAdapter?: WysiwygAdapter | null // 所见即所得适配器
+  documentId?: string // 当前文档 ID，用于保存到后端
 }
 
-const props = defineProps<Props>() // 定义props
+const props = withDefaults(defineProps<Props>(), { documentId: '' })
+const documentId = computed(() => props.documentId)
 
 // 获取编辑器store实例
 const editorStore = useEditorStore()
@@ -330,7 +364,7 @@ const editorStore = useEditorStore()
 const handleBold = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 HTML 命令
-    props.wysiwygAdapter.execCommand('bold')
+    props.wysiwygAdapter!.execCommand('bold')
     return
   }
   if (!props.editorView) return // 如果编辑器不存在则返回
@@ -341,7 +375,7 @@ const handleBold = () => {
 const handleItalic = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 HTML 命令
-    props.wysiwygAdapter.execCommand('italic')
+    props.wysiwygAdapter!.execCommand('italic')
     return
   }
   if (!props.editorView) return // 如果编辑器不存在则返回
@@ -352,7 +386,7 @@ const handleItalic = () => {
 const handleUnderline = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 HTML 命令
-    props.wysiwygAdapter.execCommand('underline')
+    props.wysiwygAdapter!.execCommand('underline')
     return
   }
   if (!props.editorView) return
@@ -364,7 +398,7 @@ const handleUnderline = () => {
 const handleStrikethrough = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 HTML 命令
-    props.wysiwygAdapter.execCommand('strikeThrough')
+    props.wysiwygAdapter!.execCommand('strikeThrough')
     return
   }
   if (!props.editorView) return
@@ -374,8 +408,9 @@ const handleStrikethrough = () => {
 
 // 处理字号增大
 const handleFontSizeIncrease = () => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -402,7 +437,7 @@ const handleFontSizeIncrease = () => {
           selection.removeAllRanges()
           selection.addRange(newRange)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         } else {
           // 如果没有选中文本，直接设置默认字号
           currentFontSize.value = Math.min(currentFontSize.value + 2, 72)
@@ -419,8 +454,9 @@ const handleFontSizeIncrease = () => {
 
 // 处理字号减小
 const handleFontSizeDecrease = () => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -447,7 +483,7 @@ const handleFontSizeDecrease = () => {
           selection.removeAllRanges()
           selection.addRange(newRange)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         } else {
           // 如果没有选中文本，直接设置默认字号
           currentFontSize.value = Math.max(currentFontSize.value - 2, 8)
@@ -462,10 +498,10 @@ const handleFontSizeDecrease = () => {
   ElMessage.info('请先选中要调整字号的文本')
 }
 
-// 保存选中状态
 const saveSelection = () => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -485,7 +521,7 @@ const saveSelection = () => {
 // 恢复选中状态
 const restoreSelection = () => {
   if (savedSelection && props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container === savedSelection.container) {
       const selection = window.getSelection()
       if (selection) {
@@ -508,8 +544,9 @@ const handleFontColorChange = (color: string | null) => {
   // 先尝试恢复选中状态
   restoreSelection()
   
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -532,7 +569,7 @@ const handleFontColorChange = (color: string | null) => {
           selection.removeAllRanges()
           selection.addRange(range)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         } else {
           // 如果没有选中文本，设置默认颜色
           document.execCommand('foreColor', false, color)
@@ -553,8 +590,9 @@ const handleBackgroundColorChange = (color: string | null) => {
   // 先尝试恢复选中状态
   restoreSelection()
   
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -577,7 +615,7 @@ const handleBackgroundColorChange = (color: string | null) => {
           selection.removeAllRanges()
           selection.addRange(newRange)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         } else {
           // 如果没有选中文本，设置默认背景颜色
           document.execCommand('backColor', false, color)
@@ -593,8 +631,9 @@ const handleBackgroundColorChange = (color: string | null) => {
 
 // 处理字体族变化
 const handleFontFamilyChange = (family: string) => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       const selection = window.getSelection()
       if (selection && selection.rangeCount > 0) {
@@ -619,7 +658,7 @@ const handleFontFamilyChange = (family: string) => {
           selection.removeAllRanges()
           selection.addRange(range)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         } else {
           // 如果没有选中文本，设置默认字体族
           if (family) {
@@ -639,7 +678,7 @@ const handleFontFamilyChange = (family: string) => {
 const calculateHeadingIndex = (level: number, currentElement: HTMLElement): string => {
   if (!props.wysiwygAdapter?.wysiwygContainer.value) return ''
   
-  const container = props.wysiwygAdapter.wysiwygContainer.value
+  const container = props.wysiwygAdapter!.wysiwygContainer.value
   // 获取所有标题元素（按文档顺序）
   const allHeadings = Array.from(container.querySelectorAll('h1, h2, h3, h4, h5, h6')) as HTMLElement[]
   
@@ -649,27 +688,25 @@ const calculateHeadingIndex = (level: number, currentElement: HTMLElement): stri
   // 找到当前元素在所有标题中的位置
   const currentIndex = allHeadings.indexOf(currentElement)
   
-  // 遍历当前元素之前的所有标题
   for (let i = 0; i < currentIndex; i++) {
     const heading = allHeadings[i]
+    if (!heading) continue
     const hLevel = parseInt(heading.tagName.substring(1)) - 1
     if (hLevel >= 0 && hLevel < 6) {
-      counts[hLevel]++
-      // 重置下级标题计数
+      const v = counts[hLevel] ?? 0
+      counts[hLevel] = v + 1
       for (let j = hLevel + 1; j < 6; j++) {
         counts[j] = 0
       }
     }
   }
-  
-  // 当前级别标题数量+1
-  counts[level - 1]++
-  
-  // 生成索引（只显示到当前级别）
+  const levelCount = counts[level - 1] ?? 0
+  counts[level - 1] = levelCount + 1
   const indexParts: string[] = []
   for (let i = 0; i < level; i++) {
-    if (counts[i] > 0) {
-      indexParts.push(counts[i].toString())
+    const c = counts[i] ?? 0
+    if (c > 0) {
+      indexParts.push(c.toString())
     }
   }
   
@@ -680,7 +717,7 @@ const calculateHeadingIndex = (level: number, currentElement: HTMLElement): stri
 const handleHeading = (level: number) => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 formatBlock 命令并添加索引
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       container.focus()
       const selection = window.getSelection()
@@ -738,7 +775,7 @@ const handleHeading = (level: number) => {
             newSelection.addRange(finalRange)
             
             // 触发内容变化事件
-            props.wysiwygAdapter.execCommand('', '')
+            props.wysiwygAdapter!.execCommand('', '')
           }
         }, 50)
       }
@@ -905,8 +942,9 @@ const addOrderedListNumbering = (listElement: HTMLElement) => {
 
 // 处理无序列表
 const handleUnorderedList = () => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       container.focus()
       const selection = window.getSelection()
@@ -927,7 +965,7 @@ const handleUnorderedList = () => {
               const list = liElement.closest('ul')
               if (list) {
                 addUnorderedListPrefix(list as HTMLElement)
-                props.wysiwygAdapter.execCommand('', '')
+                props.wysiwygAdapter!.execCommand('', '')
               }
             }
           }
@@ -976,7 +1014,7 @@ const handleUnorderedList = () => {
             selection.addRange(newRange)
             
             // 触发内容变化事件
-            props.wysiwygAdapter.execCommand('', '')
+            props.wysiwygAdapter!.execCommand('', '')
           }, 10)
         } else {
           // 如果找不到父元素，使用默认行为
@@ -1000,7 +1038,7 @@ const handleUnorderedList = () => {
               const list = liElement.closest('ul')
               if (list) {
                 addUnorderedListPrefix(list as HTMLElement)
-                props.wysiwygAdapter.execCommand('', '')
+                props.wysiwygAdapter!.execCommand('', '')
               }
             }
           }
@@ -1017,8 +1055,9 @@ const handleUnorderedList = () => {
 
 // 处理有序列表
 const handleOrderedList = () => {
-  if (props.wysiwygAdapter) {
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+  const adapter = props.wysiwygAdapter
+  if (adapter) {
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       container.focus()
       const selection = window.getSelection()
@@ -1041,7 +1080,7 @@ const handleOrderedList = () => {
                 const olElement = list as HTMLOListElement
                 olElement.start = 1
                 addOrderedListNumbering(list as HTMLElement)
-                props.wysiwygAdapter.execCommand('', '')
+                props.wysiwygAdapter!.execCommand('', '')
               }
             }
           }
@@ -1099,7 +1138,7 @@ const handleOrderedList = () => {
             selection.addRange(newRange)
             
             // 触发内容变化事件
-            props.wysiwygAdapter.execCommand('', '')
+            props.wysiwygAdapter!.execCommand('', '')
           }, 10)
         } else {
           // 如果找不到父元素，使用默认行为
@@ -1125,7 +1164,7 @@ const handleOrderedList = () => {
                 const olElement = list as HTMLOListElement
                 olElement.start = 1
                 addOrderedListNumbering(list as HTMLElement)
-                props.wysiwygAdapter.execCommand('', '')
+                props.wysiwygAdapter!.execCommand('', '')
               }
             }
           }
@@ -1144,7 +1183,7 @@ const handleOrderedList = () => {
 const handleQuote = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：使用 formatBlock 命令
-    props.wysiwygAdapter.execCommand('formatBlock', 'blockquote')
+    props.wysiwygAdapter!.execCommand('formatBlock', 'blockquote')
     return
   }
   if (!props.editorView) {
@@ -1192,7 +1231,7 @@ const handleQuote = () => {
 const handleInlineCode = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：包装 code 标签
-    props.wysiwygAdapter.wrapText('<code>', '</code>')
+    props.wysiwygAdapter!.wrapText('<code>', '</code>')
     return
   }
   if (!props.editorView) {
@@ -1206,7 +1245,7 @@ const handleInlineCode = () => {
 const handleCodeBlock = () => {
   if (props.wysiwygAdapter) {
     // 所见即所得模式：插入 pre 和 code 标签，支持 Vue 语法高亮
-    const container = props.wysiwygAdapter.wysiwygContainer.value
+    const container = props.wysiwygAdapter!.wysiwygContainer.value
     if (container) {
       container.focus()
       const selection = window.getSelection()
@@ -1267,11 +1306,11 @@ const handleCodeBlock = () => {
               }
               
               // 触发内容变化事件（这会自动添加工具栏）
-              props.wysiwygAdapter.execCommand('', '')
+              props.wysiwygAdapter!.execCommand('', '')
             } catch (error) {
               console.warn('代码高亮失败:', error)
               code.className = 'language-python hljs'
-              props.wysiwygAdapter.execCommand('', '')
+              props.wysiwygAdapter!.execCommand('', '')
             }
           }
         }, 50)
@@ -1323,7 +1362,7 @@ const handleLink = () => {
     // 所见即所得模式：使用 createLink 命令
     const url = prompt('请输入链接地址:', 'https://')
     if (url) {
-      props.wysiwygAdapter.execCommand('createLink', url)
+      props.wysiwygAdapter!.execCommand('createLink', url)
     }
     return
   }
@@ -1364,7 +1403,7 @@ const handleImageUpload = async (uploadFile: UploadFile) => {
     
     if (props.wysiwygAdapter) {
       // 所见即所得模式：直接插入 img 标签
-      const container = props.wysiwygAdapter.wysiwygContainer.value
+      const container = props.wysiwygAdapter!.wysiwygContainer.value
       if (container) {
         container.focus()
         const selection = window.getSelection()
@@ -1387,7 +1426,7 @@ const handleImageUpload = async (uploadFile: UploadFile) => {
           selection?.removeAllRanges()
           selection?.addRange(range)
           
-          props.wysiwygAdapter.execCommand('', '')
+          props.wysiwygAdapter!.execCommand('', '')
         }
       }
     } else if (props.editorView) {
@@ -1423,7 +1462,7 @@ const handleClear = async () => {
     editorStore.clearContent() // 清空内容
     if (props.wysiwygAdapter) {
       // 所见即所得模式：清空容器内容
-      const container = props.wysiwygAdapter.wysiwygContainer.value
+      const container = props.wysiwygAdapter!.wysiwygContainer.value
       if (container) {
         container.innerHTML = ''
         container.focus()
@@ -1445,16 +1484,24 @@ const handleClear = async () => {
   }
 }
 
-// 处理保存
-const handleSave = () => {
-  try {
-    // 将 Markdown 内容保存到 localStorage
-    localStorage.setItem('markdown-content', editorStore.markdownContent)
-    ElMessage.success('内容已保存到本地存储') // 提示保存成功
-  } catch (error) {
-    console.error('保存失败:', error) // 输出错误信息
-    ElMessage.error('保存失败，请重试') // 提示保存失败
+// 处理保存（保存到后端）
+const handleSave = async () => {
+  if (!props.documentId) {
+    ElMessage.warning('请先选择或创建文档')
+    return
   }
+  try {
+    await updateDocument(props.documentId, { content: editorStore.markdownContent })
+    ElMessage.success('已保存到后端')
+  } catch (error) {
+    console.error('保存失败:', error)
+    ElMessage.error('保存失败，请重试')
+  }
+}
+
+// 处理导出 Markdown
+const handleExportMarkdown = () => {
+  exportToMarkdown(editorStore.markdownContent, 'markdown-export')
 }
 
 // 处理导出HTML

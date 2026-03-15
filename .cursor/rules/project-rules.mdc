@@ -1,0 +1,32 @@
+---
+description: Markdown-LCY 项目通用规则
+alwaysApply: true
+---
+
+# Markdown-LCY 项目规则
+
+## 一、技术栈与架构
+
+本项目为基于 Vue 3 + TypeScript 的在线 Markdown 编辑器，采用 Composition API 与 `<script setup>`。状态管理使用 Pinia，UI 层为 Element Plus、Tailwind CSS 与 DaisyUI；Markdown 解析使用 marked，输出经 DOMPurify 净化后渲染，代码高亮使用 highlight.js。编辑区以 contenteditable 所见即所得为主，CodeMirror 相关依赖保留以兼容工具栏等逻辑。所有新增代码须符合现有技术选型，不得引入与当前栈冲突的框架或全局状态方案。
+
+## 二、目录与模块约定
+
+- `src/components/` 放置可复用组件，单文件组件优先，逻辑复杂时拆出 composables 或 utils。
+- `src/stores/` 下仅保留 Pinia store，编辑器核心状态在 `editor` store 中，避免多处维护同一份内容。
+- `src/utils/` 为纯函数与工具方法，不依赖 Vue 或 DOM 环境，便于单测与复用。
+- `src/types/` 集中维护全局 TypeScript 类型与接口，组件内类型可局部定义但需避免与全局类型重复或冲突。
+
+## 三、代码与安全规范
+
+- TypeScript 启用严格模式，禁止使用 `any` 逃避类型；无法精确类型时使用 `unknown` 或明确窄化。
+- 凡将用户或外部数据渲染为 HTML 的路径，必须经 DOMPurify（或项目规定的净化方式）处理，防止 XSS。
+- 编辑器内容以 Pinia store 中的 `markdownContent` 为唯一真相源；所有编辑入口（包括粘贴、拖拽）须同步回 store，再由 store 驱动预览与导出，避免多源不一致。
+- 新增依赖需评估体积与许可证，并更新 `package.json` 与文档；涉及安全或解析逻辑的依赖须在规格或 design 中说明用途。
+
+## 四、风格与可维护性
+
+- 组件与函数命名清晰、与业务含义一致；复杂逻辑配简短注释说明意图，非自解释的算法或规则需注释。
+- 样式优先使用 Tailwind/DaisyUI 工具类，必要时使用 scoped 的 `<style>`，避免污染全局。
+- 提交前运行 `npm run type-check` 与 `npm run build` 确保类型与构建通过。
+
+遵循以上规则可保持需求与实现对齐、提升可评审性与长期可维护性。
