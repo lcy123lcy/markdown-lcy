@@ -62,7 +62,7 @@
         </form>
         <p class="text-center text-sm mt-4 text-base-content/70">
           已有账号？
-          <router-link to="/login" class="link link-primary">立即登录</router-link>
+          <router-link to="/lcylogin" class="link link-primary">立即登录</router-link>
         </p>
       </div>
     </div>

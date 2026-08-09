@@ -4,7 +4,7 @@
       <header class="navbar bg-base-200 shadow-lg flex-shrink-0">
         <div class="flex-1">
           <router-link to="/" class="text-2xl font-bold px-4 hover:opacity-80">
-            Markdown编辑器
+            豆豆相册
           </router-link>
         </div>
         <div v-if="authStore.isAuthenticated" class="flex items-center gap-2 px-4">

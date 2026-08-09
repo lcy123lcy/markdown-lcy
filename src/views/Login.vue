@@ -45,7 +45,7 @@
         </form>
         <p class="text-center text-sm mt-4 text-base-content/70">
           还没有账号？
-          <router-link to="/register" class="link link-primary">立即注册</router-link>
+          <router-link to="/lcyregister" class="link link-primary">立即注册</router-link>
         </p>
       </div>
     </div>
