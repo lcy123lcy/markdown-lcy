@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: frontend_app
-title: Markdown 文档编辑器前端应用
+title: 在线 Markdown 文档编辑器前端应用
 scope:
     - src/
 source_files: []

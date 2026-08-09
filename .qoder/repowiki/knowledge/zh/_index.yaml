@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-08-09T02:37:15Z"
+exported_at: "2026-08-09T03:35:47Z"
 modules:
     "":
-        dir_name: Markdown 文档编辑器前端工程根
-        title: Markdown 文档编辑器前端工程根
+        dir_name: 在线 Markdown 文档编辑器工程根
+        title: 在线 Markdown 文档编辑器工程根
         scope:
             - README.md
             - .gitignore
@@ -29,8 +29,8 @@ modules:
         depends_on: []
         related_to: []
     frontend_app:
-        dir_name: Markdown 文档编辑器前端应用
-        title: Markdown 文档编辑器前端应用
+        dir_name: 在线 Markdown 文档编辑器前端应用
+        title: 在线 Markdown 文档编辑器前端应用
         scope:
             - src/
         source_files: []
