@@ -32,7 +32,7 @@ export async function apiFetch(
     } catch {
       authStore.clearAuth()
       if (typeof window !== 'undefined') {
-        window.location.href = '/login'
+        window.location.href = '/'
       }
     }
   }
